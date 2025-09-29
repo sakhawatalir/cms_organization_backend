@@ -12,11 +12,20 @@
             "dest": "/index.js"
         },
         {
+            "src": "/test-db",
+            "dest": "/index.js"
+        },
+        {
             "src": "/(.*)",
             "dest": "/index.js"
         }
     ],
     "env": {
         "NODE_ENV": "production"
+    },
+    "functions": {
+        "index.js": {
+            "maxDuration": 30
+        }
     }
 }
