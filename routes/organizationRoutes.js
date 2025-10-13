@@ -34,6 +34,13 @@ function createOrganizationRouter(organizationController, authMiddleware) {
     // New route for history
     router.get('/:id/history', organizationController.getHistory);
 
+    // Document routes
+    router.get('/:id/documents', organizationController.getDocuments);
+    router.post('/:id/documents', organizationController.addDocument);
+    router.get('/:id/documents/:documentId', organizationController.getDocument);
+    router.put('/:id/documents/:documentId', organizationController.updateDocument);
+    router.delete('/:id/documents/:documentId', organizationController.deleteDocument);
+
     return router;
 }
 

@@ -26,6 +26,7 @@ class CustomFieldDefinition {
                     placeholder VARCHAR(255),
                     default_value TEXT,
                     validation_rules JSONB,
+                    lookup_type VARCHAR(50),
                     created_by INTEGER REFERENCES users(id),
                     updated_by INTEGER REFERENCES users(id),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -38,6 +39,12 @@ class CustomFieldDefinition {
             await client.query(`
                 ALTER TABLE custom_field_definitions 
                 ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id)
+            `);
+
+            // Add lookup_type column if it doesn't exist (for existing installations)
+            await client.query(`
+                ALTER TABLE custom_field_definitions 
+                ADD COLUMN IF NOT EXISTS lookup_type VARCHAR(50)
             `);
 
             // Create history table for tracking changes
@@ -80,6 +87,7 @@ class CustomFieldDefinition {
             placeholder,
             defaultValue,
             validationRules,
+            lookupType,
             userId
         } = fieldData;
 
@@ -91,10 +99,10 @@ class CustomFieldDefinition {
                 INSERT INTO custom_field_definitions (
                     entity_type, field_name, field_label, field_type,
                     is_required, is_hidden, sort_order, options,
-                    placeholder, default_value, validation_rules, 
+                    placeholder, default_value, validation_rules, lookup_type,
                     created_by, updated_by
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13)
                 RETURNING *
             `;
 
@@ -110,6 +118,7 @@ class CustomFieldDefinition {
                 placeholder,
                 defaultValue,
                 validationRules ? JSON.stringify(validationRules) : null,
+                lookupType || null,
                 userId
             ];
 
@@ -195,7 +204,8 @@ class CustomFieldDefinition {
                 isHidden: 'is_hidden',
                 sortOrder: 'sort_order',
                 placeholder: 'placeholder',
-                defaultValue: 'default_value'
+                defaultValue: 'default_value',
+                lookupType: 'lookup_type'
             };
 
             // Process regular fields

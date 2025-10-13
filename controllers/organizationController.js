@@ -2,6 +2,7 @@ const Organization = require('../models/organization');
 const Office = require('../models/office');
 const Team = require('../models/team');
 const User = require('../models/user');
+const Document = require('../models/document');
 
 class OrganizationController {
     constructor(pool) {
@@ -9,21 +10,29 @@ class OrganizationController {
         this.officeModel = new Office(pool);
         this.teamModel = new Team(pool);
         this.userModel = new User(pool);
+        this.documentModel = new Document(pool);
         this.create = this.create.bind(this);
         this.getAll = this.getAll.bind(this);
         this.getById = this.getById.bind(this);
         this.update = this.update.bind(this);
         this.delete = this.delete.bind(this);
-        // Bind new methods
+        // Bind existing methods
         this.addNote = this.addNote.bind(this);
         this.getNotes = this.getNotes.bind(this);
         this.getHistory = this.getHistory.bind(this);
+        // Bind document methods
+        this.getDocuments = this.getDocuments.bind(this);
+        this.getDocument = this.getDocument.bind(this);
+        this.addDocument = this.addDocument.bind(this);
+        this.updateDocument = this.updateDocument.bind(this);
+        this.deleteDocument = this.deleteDocument.bind(this);
     }
 
 
     // Initialize database tables
     async initTables() {
         await this.organizationModel.initTable();
+        await this.documentModel.initTable();
     }
 
     // Update the create method to properly handle all fields
@@ -47,6 +56,7 @@ class OrganizationController {
             num_offices, // Use exact snake_case names as received
             contact_phone, // Use exact snake_case names as received
             address,
+            custom_fields, // ADDED: Extract custom fields from request
             // New fields for office, team, and user creation
             offices,
             teams,
@@ -73,11 +83,11 @@ class OrganizationController {
             address
         });
 
-        // Basic validation
-        if (!name || !website || !overview) {
+        // Basic validation - only name is required
+        if (!name || !name.trim()) {
             return res.status(400).json({
                 success: false,
-                message: 'Organization name, website, and overview are required'
+                message: 'Organization name is required'
             });
         }
 
@@ -102,17 +112,33 @@ class OrganizationController {
                 num_offices,
                 contact_phone,
                 address,
-                userId
+                userId,
+                customFields: custom_fields // ADDED: Pass custom fields to model
             });
 
             // Log the created organization for debugging
             console.log("Organization created successfully:", organization);
 
+            // Auto-create default welcome document for the organization
+            let defaultDocument = null;
+            try {
+                defaultDocument = await this.documentModel.createDefaultOrganizationDocument(
+                    organization.id,
+                    organization.name,
+                    userId
+                );
+                console.log("Default document created:", defaultDocument);
+            } catch (docError) {
+                console.error('Error creating default document:', docError);
+                // Don't fail organization creation if document creation fails
+            }
+
             const createdEntities = {
                 organization,
                 offices: [],
                 teams: [],
-                users: []
+                users: [],
+                defaultDocument
             };
 
             // Create offices if provided
@@ -173,7 +199,8 @@ class OrganizationController {
             res.status(201).json({
                 success: true,
                 message: 'Organization and related entities created successfully',
-                data: createdEntities
+                organization: createdEntities.organization, // Frontend expects this
+                data: createdEntities // Keep full data for backward compatibility
             });
         } catch (error) {
             console.error('Error creating organization:', error);
@@ -443,6 +470,158 @@ class OrganizationController {
             res.status(500).json({
                 success: false,
                 message: 'An error occurred while deleting the organization',
+                error: process.env.NODE_ENV === 'production' ? undefined : error.message
+            });
+        }
+    }
+
+    // Document methods
+
+    // Get all documents for an organization
+    async getDocuments(req, res) {
+        try {
+            const { id } = req.params;
+
+            // Get all documents for this organization
+            const documents = await this.documentModel.getByEntity('organization', id);
+
+            return res.status(200).json({
+                success: true,
+                count: documents.length,
+                documents
+            });
+        } catch (error) {
+            console.error('Error getting documents:', error);
+            res.status(500).json({
+                success: false,
+                message: 'An error occurred while getting documents',
+                error: process.env.NODE_ENV === 'production' ? undefined : error.message
+            });
+        }
+    }
+
+    // Get a specific document
+    async getDocument(req, res) {
+        try {
+            const { documentId } = req.params;
+
+            const document = await this.documentModel.getById(documentId);
+
+            if (!document) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Document not found'
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                document
+            });
+        } catch (error) {
+            console.error('Error getting document:', error);
+            res.status(500).json({
+                success: false,
+                message: 'An error occurred while getting the document',
+                error: process.env.NODE_ENV === 'production' ? undefined : error.message
+            });
+        }
+    }
+
+    // Add a new document
+    async addDocument(req, res) {
+        try {
+            const { id } = req.params;
+            const { document_name, document_type, content } = req.body;
+
+            if (!document_name) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Document name is required'
+                });
+            }
+
+            // Get the current user's ID
+            const userId = req.user.id;
+
+            // Create the document
+            const document = await this.documentModel.create({
+                entity_type: 'organization',
+                entity_id: id,
+                document_name,
+                document_type: document_type || 'General',
+                content,
+                created_by: userId
+            });
+
+            return res.status(201).json({
+                success: true,
+                message: 'Document added successfully',
+                document
+            });
+        } catch (error) {
+            console.error('Error adding document:', error);
+            res.status(500).json({
+                success: false,
+                message: 'An error occurred while adding the document',
+                error: process.env.NODE_ENV === 'production' ? undefined : error.message
+            });
+        }
+    }
+
+    // Update a document
+    async updateDocument(req, res) {
+        try {
+            const { documentId } = req.params;
+            const updateData = req.body;
+
+            const document = await this.documentModel.update(documentId, updateData);
+
+            if (!document) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Document not found'
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: 'Document updated successfully',
+                document
+            });
+        } catch (error) {
+            console.error('Error updating document:', error);
+            res.status(500).json({
+                success: false,
+                message: 'An error occurred while updating the document',
+                error: process.env.NODE_ENV === 'production' ? undefined : error.message
+            });
+        }
+    }
+
+    // Delete a document
+    async deleteDocument(req, res) {
+        try {
+            const { documentId } = req.params;
+
+            const document = await this.documentModel.delete(documentId);
+
+            if (!document) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Document not found'
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: 'Document deleted successfully'
+            });
+        } catch (error) {
+            console.error('Error deleting document:', error);
+            res.status(500).json({
+                success: false,
+                message: 'An error occurred while deleting the document',
                 error: process.env.NODE_ENV === 'production' ? undefined : error.message
             });
         }

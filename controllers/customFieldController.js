@@ -36,7 +36,8 @@ class CustomFieldController {
                 options,
                 placeholder,
                 defaultValue,
-                validationRules
+                validationRules,
+                lookupType
             } = req.body;
 
             console.log("Create custom field request:", req.body);
@@ -72,6 +73,7 @@ class CustomFieldController {
                 placeholder,
                 defaultValue,
                 validationRules,
+                lookupType,
                 userId
             };
 

@@ -104,10 +104,6 @@ class Organization {
             num_offices,
             contact_phone,
             address,
-            address2,
-            city,
-            state,
-            zip_code,
             userId,
             customFields = {}
         } = organizationData;
@@ -155,13 +151,9 @@ class Organization {
                     created_by,
                     contact_phone,
                     address,
-                    address2,
-                    city,
-                    state,
-                    zip_code,
                     custom_fields
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
                 RETURNING *
             `;
 
@@ -183,10 +175,6 @@ class Organization {
                 userId,
                 contact_phone,
                 address,
-                address2,
-                city,
-                state,
-                zip_code,
                 customFieldsJson
             ];
 
@@ -230,6 +218,8 @@ class Organization {
             client.release();
         }
     }
+
+    
 
     // Get all organizations (with optional filtering by created_by user)
     async getAll(userId = null) {
