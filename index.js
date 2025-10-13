@@ -6,14 +6,17 @@ require("dotenv").config();
 const helmet = require("helmet");
 const compression = require("compression");
 
-// Check for required environment variables
-const requiredEnvVars = ['JWT_SECRET', 'DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_DATABASE'];
-const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+// Check for required environment variables (only in production)
+if (process.env.NODE_ENV === 'production') {
+  const requiredEnvVars = ['JWT_SECRET', 'DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_DATABASE'];
+  const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 
-if (missingEnvVars.length > 0) {
-  console.error('❌ Missing required environment variables:', missingEnvVars.join(', '));
-  console.error('Please ensure all required environment variables are set in your Vercel deployment.');
-  process.exit(1);
+  if (missingEnvVars.length > 0) {
+    console.error('❌ Missing required environment variables:', missingEnvVars.join(', '));
+    console.error('Please ensure all required environment variables are set in your Vercel deployment.');
+    // Don't exit in production, just log the error
+    console.error('Continuing with deployment but some features may not work properly.');
+  }
 }
 
 // Import custom modules
