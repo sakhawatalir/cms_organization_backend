@@ -351,20 +351,31 @@ class Organization {
                         ? JSON.parse(customFieldsData)
                         : customFieldsData;
 
-                    newCustomFields = { ...existingCustomFields, ...updateCustomFields };
+                    // Ensure updateCustomFields is an object, not an integer or other type
+                    if (typeof updateCustomFields === 'object' && updateCustomFields !== null && !Array.isArray(updateCustomFields)) {
+                        newCustomFields = { ...existingCustomFields, ...updateCustomFields };
+                    } else {
+                        console.error("Warning: custom_fields data is not a valid object:", updateCustomFields);
+                        newCustomFields = existingCustomFields; // Keep existing if new data is invalid
+                    }
                 } catch (e) {
                     console.error("Error parsing custom fields:", e);
-                    newCustomFields = typeof customFieldsData === 'string'
-                        ? customFieldsData
-                        : JSON.stringify(customFieldsData);
+                    // If parsing fails, ensure we still have a valid object
+                    if (typeof customFieldsData === 'object' && customFieldsData !== null && !Array.isArray(customFieldsData)) {
+                        newCustomFields = customFieldsData;
+                    } else {
+                        newCustomFields = {};
+                    }
                 }
 
-                updateFields.push(`custom_fields = ${paramCount}`);
-                queryParams.push(newCustomFields); // DB JSONB me directly save ho jayega
+                // Final validation: ensure newCustomFields is always an object
+                if (typeof newCustomFields !== 'object' || newCustomFields === null || Array.isArray(newCustomFields)) {
+                    console.error("CRITICAL: newCustomFields is not a valid object, using empty object");
+                    newCustomFields = {};
+                }
 
-                // queryParams.push(typeof newCustomFields === 'string'
-                //     ? newCustomFields
-                //     : JSON.stringify(newCustomFields));
+                updateFields.push(`custom_fields = $${paramCount}`);
+                queryParams.push(newCustomFields); // DB JSONB me directly save ho jayega
                 paramCount++;
 
                 // Remove from further processing
@@ -374,20 +385,46 @@ class Organization {
 
             // Process all other fields
             for (const [key, value] of Object.entries(updateData)) {
-                if (fieldMapping[key]) {
-                    updateFields.push(`${fieldMapping[key]} = ${paramCount}`);
-                } else {
-                    updateFields.push(`${key} = ${paramCount}`);
+                // Skip customFields and custom_fields as they're already processed
+                if (key === 'customFields' || key === 'custom_fields') {
+                    continue;
                 }
 
-                // Handle numeric conversions - FIXED
-                if (key === 'numEmployees' || key === 'num_employees') {
-                    queryParams.push(this.parseIntegerField(value));
-                } else if (key === 'numOffices' || key === 'num_offices') {
-                    queryParams.push(this.parseIntegerField(value));
-                } else {
-                    queryParams.push(value);
+                // Skip undefined values - don't include them in the update
+                if (value === undefined) {
+                    continue;
                 }
+
+                // Get the database field name (snake_case)
+                const dbFieldName = fieldMapping[key] || key;
+                let paramValue = value;
+
+                // Handle date fields - ensure null is properly handled
+                if (dbFieldName === 'date_contract_signed') {
+                    // If value is null, empty string, or invalid, set to null
+                    if (value === null || value === '' || value === undefined) {
+                        paramValue = null;
+                    }
+                    // paramValue is already set to value if it's valid
+                }
+                // Handle numeric conversions
+                else if (dbFieldName === 'num_employees' || key === 'numEmployees' || key === 'num_employees') {
+                    paramValue = this.parseIntegerField(value);
+                } else if (dbFieldName === 'num_offices' || key === 'numOffices' || key === 'num_offices') {
+                    paramValue = this.parseIntegerField(value);
+                }
+
+                // Ensure paramValue is not undefined before adding
+                if (paramValue === undefined) {
+                    console.warn(`Warning: paramValue is undefined for field ${key} (${dbFieldName}), skipping`);
+                    continue;
+                }
+
+                // Add field and parameter - ensure we always add both together
+                // Log each field being added for debugging
+                console.log(`Adding field: ${dbFieldName} = $${paramCount}, value:`, paramValue, `type:`, typeof paramValue);
+                updateFields.push(`${dbFieldName} = $${paramCount}`);
+                queryParams.push(paramValue);
                 paramCount++;
             }
 
@@ -398,14 +435,44 @@ class Organization {
                 return organization;
             }
 
+            // Validate that we have the same number of parameters as placeholders
+            // Count placeholders in updateFields (excluding updated_at which has no param)
+            const fieldPlaceholders = updateFields.filter(f => f.includes('$')).length;
+            if (fieldPlaceholders !== queryParams.length) {
+                console.error('Parameter mismatch detected!');
+                console.error('Update fields:', updateFields);
+                console.error('Query params count:', queryParams.length);
+                console.error('Field placeholders count:', fieldPlaceholders);
+                console.error('Query params:', queryParams);
+                console.error('Update data received:', updateData);
+                throw new Error(`Parameter count mismatch: ${fieldPlaceholders} placeholders but ${queryParams.length} parameters`);
+            }
+            
+            // Validate that all parameters are defined (not undefined)
+            queryParams.forEach((param, index) => {
+                if (param === undefined) {
+                    console.error(`Parameter at index ${index} is undefined!`);
+                    console.error('Update fields:', updateFields);
+                    console.error('Query params:', queryParams);
+                    throw new Error(`Parameter at index ${index} is undefined`);
+                }
+            });
+
             const updateQuery = `
                 UPDATE organizations 
                 SET ${updateFields.join(', ')}
-                WHERE id = ${paramCount}
+                WHERE id = $${paramCount}
                 RETURNING *
             `;
 
             queryParams.push(id);
+            
+            // Log the query and params for debugging
+            console.log('Update query:', updateQuery);
+            console.log('Update fields:', updateFields);
+            console.log('Query params count:', queryParams.length);
+            console.log('Query params:', JSON.stringify(queryParams, null, 2));
+            console.log('Update data received:', JSON.stringify(updateData, null, 2));
 
             const result = await client.query(updateQuery, queryParams);
             const updatedOrganization = result.rows[0];
