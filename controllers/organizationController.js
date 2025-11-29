@@ -64,25 +64,16 @@ class OrganizationController {
         } = req.body;
 
         // Debug log all received fields
-        console.log("Create organization request body:", req.body);
-        console.log("Extracted fields:", {
-            name,
-            nicknames,
-            parent_organization,
-            website,
-            status,
-            contract_on_file,
-            contract_signed_by,
-            date_contract_signed,
-            year_founded,
-            overview,
-            perm_fee,
-            num_employees,
-            num_offices,
-            contact_phone,
-            address, 
-            custom_fields
-        });
+        console.log("=== CREATE ORGANIZATION REQUEST ===");
+        console.log("Full request body:", JSON.stringify(req.body, null, 2));
+        console.log("custom_fields in req.body:", req.body.custom_fields);
+        console.log("custom_fields type:", typeof req.body.custom_fields);
+        console.log("custom_fields is array:", Array.isArray(req.body.custom_fields));
+        console.log("custom_fields keys:", req.body.custom_fields ? Object.keys(req.body.custom_fields).length : 'null/undefined');
+        console.log("Extracted custom_fields:", custom_fields);
+        console.log("Extracted custom_fields type:", typeof custom_fields);
+        console.log("Extracted custom_fields keys:", custom_fields ? Object.keys(custom_fields).length : 'null/undefined');
+        console.log("=== END CREATE REQUEST ===");
 
         // Basic validation - only name is required
         if (!name || !name.trim()) {
@@ -97,7 +88,8 @@ class OrganizationController {
             const userId = req.user.id;
 
             // Create organization in database - PASS ALL FIELDS DIRECTLY
-            const organization = await this.organizationModel.create({
+            // CRITICAL: Log what we're passing to the model
+            const modelData = {
                 name,
                 nicknames,
                 parent_organization,
@@ -114,8 +106,15 @@ class OrganizationController {
                 contact_phone,
                 address,
                 userId,
-                customFields: custom_fields || {}, // ADDED: Pass custom fields to model
-            });
+                custom_fields: custom_fields || {}, // FIXED: Use snake_case to match model expectation
+            };
+            console.log("=== PASSING TO MODEL ===");
+            console.log("custom_fields being passed:", JSON.stringify(modelData.custom_fields, null, 2));
+            console.log("custom_fields type:", typeof modelData.custom_fields);
+            console.log("custom_fields keys count:", modelData.custom_fields ? Object.keys(modelData.custom_fields).length : 0);
+            console.log("=== END PASSING TO MODEL ===");
+            
+            const organization = await this.organizationModel.create(modelData);
 
             // Log the created organization for debugging
             console.log("Organization created successfully:", organization);

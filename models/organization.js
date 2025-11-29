@@ -133,18 +133,39 @@ class Organization {
             //         customFieldsJson = JSON.stringify(custom_fields);
             //     }
             // }
-            // ✅ Convert custom fields to JSON safely
-        let customFieldsJson = "{}";
-        if (typeof custom_fields === "object") {
-            customFieldsJson = JSON.stringify(custom_fields);
-        } else if (typeof custom_fields === "string") {
-            try {
-                JSON.parse(custom_fields);
-                customFieldsJson = custom_fields;
-            } catch {
-                customFieldsJson = "{}";
+            // ✅ Convert custom fields for PostgreSQL JSONB
+        // Use JSON.stringify like other models (lead.js, job.js, etc.)
+        let customFieldsJson = '{}';
+        
+        if (custom_fields) {
+            if (typeof custom_fields === 'string') {
+                // It's already a string, validate it's valid JSON
+                try {
+                    JSON.parse(custom_fields);
+                    customFieldsJson = custom_fields;
+                } catch (e) {
+                    console.error("Invalid JSON string in custom_fields:", e);
+                    customFieldsJson = '{}';
+                }
+            } else if (typeof custom_fields === 'object' && !Array.isArray(custom_fields) && custom_fields !== null) {
+                // It's a valid object, stringify it
+                try {
+                    customFieldsJson = JSON.stringify(custom_fields);
+                } catch (e) {
+                    console.error("Error stringifying custom_fields:", e);
+                    customFieldsJson = '{}';
+                }
             }
         }
+        
+        // Debug log
+        console.log("Custom fields processing:");
+        console.log("  - Received custom_fields:", custom_fields);
+        console.log("  - Type:", typeof custom_fields);
+        console.log("  - Is array:", Array.isArray(custom_fields));
+        console.log("  - Final JSON string:", customFieldsJson);
+        console.log("  - Final JSON string length:", customFieldsJson.length);
+        console.log("  - Parsed keys count:", customFieldsJson !== '{}' ? Object.keys(JSON.parse(customFieldsJson)).length : 0);
 
             // Set up insert statement with exact column names matching the database
             const insertOrgQuery = `
@@ -189,15 +210,25 @@ class Organization {
                 userId,
                 contact_phone,
                 address,
-                customFieldsJson
+                customFieldsJson  // Pass JSON string - consistent with other models
             ];
 
             // Debug log the SQL and values
             console.log("SQL Query:", insertOrgQuery);
-            console.log("Query values:", JSON.stringify(values, null, 2));
-            console.log("Custom fields JSON being saved to database:", customFieldsJson);
+            console.log("Query values (custom_fields JSON):", customFieldsJson);
+            console.log("All query values count:", values.length);
+            console.log("Custom fields being saved (type):", typeof customFieldsJson);
+            console.log("Custom fields being saved (length):", customFieldsJson.length);
 
             const result = await client.query(insertOrgQuery, values);
+
+            // Debug: Check what was returned from database
+            console.log("=== DATABASE RETURN VALUE ===");
+            console.log("Result rows[0]:", JSON.stringify(result.rows[0], null, 2));
+            console.log("custom_fields in result:", result.rows[0].custom_fields);
+            console.log("custom_fields type:", typeof result.rows[0].custom_fields);
+            console.log("custom_fields keys:", result.rows[0].custom_fields ? Object.keys(result.rows[0].custom_fields).length : 'null/undefined');
+            console.log("=== END DATABASE RETURN ===");
 
             // Add an entry to history
             const historyQuery = `
@@ -222,8 +253,20 @@ class Organization {
             // Commit transaction
             await client.query('COMMIT');
 
-            console.log("Created organization:", result.rows[0]);
-            return result.rows[0];
+            // Final check before returning
+            const returnedOrg = result.rows[0];
+            console.log("=== FINAL RETURN VALUE ===");
+            console.log("Returning organization with custom_fields:", returnedOrg.custom_fields);
+            console.log("custom_fields type:", typeof returnedOrg.custom_fields);
+            if (returnedOrg.custom_fields) {
+                console.log("custom_fields keys:", Object.keys(returnedOrg.custom_fields).length);
+                console.log("custom_fields sample:", JSON.stringify(returnedOrg.custom_fields).substring(0, 200));
+            } else {
+                console.log("custom_fields is null/undefined/empty");
+            }
+            console.log("=== END FINAL RETURN ===");
+            
+            return returnedOrg;
         } catch (error) {
             // Rollback transaction in case of error
             await client.query('ROLLBACK');
