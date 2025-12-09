@@ -286,6 +286,7 @@ class CustomFieldController {
             }
 
             // 11. Perform the update
+            console.log("Sanitized data:", sanitizedData);
             const customField = await this.customFieldModel.update(id, sanitizedData, userId);
 
             if (!customField) {
