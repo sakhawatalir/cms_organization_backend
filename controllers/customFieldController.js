@@ -58,6 +58,15 @@ class CustomFieldController {
                 });
             }
 
+            // Validate field type
+            const validFieldTypes = ['text', 'email', 'phone', 'number', 'date', 'datetime', 'textarea', 'select', 'checkbox', 'radio', 'url', 'file', 'lookup'];
+            if (fieldType && !validFieldTypes.includes(fieldType)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Invalid field type. Must be one of: ${validFieldTypes.join(', ')}`
+                });
+            }
+
             // Get user ID from auth middleware
             const userId = req.user.id;
 
@@ -219,7 +228,7 @@ class CustomFieldController {
             }
 
             // 5. Validate field type if it's being updated
-            const validFieldTypes = ['text', 'email', 'phone', 'number', 'date', 'textarea', 'select', 'checkbox', 'radio', 'url', 'file'];
+            const validFieldTypes = ['text', 'email', 'phone', 'number', 'date', 'datetime', 'textarea', 'select', 'checkbox', 'radio', 'url', 'file', 'lookup'];
             if (updateData.fieldType !== undefined) {
                 if (!validFieldTypes.includes(updateData.fieldType)) {
                     return res.status(400).json({
