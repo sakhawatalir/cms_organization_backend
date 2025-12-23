@@ -31,6 +31,10 @@ const UserController = require("./controllers/userController");
 const LeadController = require("./controllers/leadController");
 const TaskController = require("./controllers/taskController");
 const PlacementController = require("./controllers/placementController");
+const TearsheetController = require("./controllers/tearsheetController");
+const AdminDocumentController = require("./controllers/adminDocumentController");
+const SharedDocumentController = require("./controllers/sharedDocumentController");
+const BroadcastMessageController = require("./controllers/broadcastMessageController");
 // NEW IMPORTS
 const OfficeController = require("./controllers/officeController");
 const TeamController = require("./controllers/teamController");
@@ -45,6 +49,10 @@ const createUserRouter = require("./routes/userRoutes");
 const createLeadRouter = require("./routes/leadRoutes");
 const createTaskRouter = require("./routes/taskRoutes");
 const createPlacementRouter = require("./routes/placementRoutes");
+const createTearsheetRouter = require("./routes/tearsheetRoutes");
+const createAdminDocumentRouter = require("./routes/adminDocumentRoutes");
+const createSharedDocumentRouter = require("./routes/sharedDocumentRoutes");
+const createBroadcastMessageRouter = require("./routes/broadcastMessageRoutes");
 // NEW ROUTE IMPORTS
 const createOfficeRouter = require("./routes/officeRoutes");
 const createTeamRouter = require("./routes/teamRoutes");
@@ -161,6 +169,22 @@ const getPlacementController = () => {
   return new PlacementController(getPool());
 };
 
+const getTearsheetController = () => {
+  return new TearsheetController(getPool());
+};
+
+const getAdminDocumentController = () => {
+  return new AdminDocumentController(getPool());
+};
+
+const getSharedDocumentController = () => {
+  return new SharedDocumentController(getPool());
+};
+
+const getBroadcastMessageController = () => {
+  return new BroadcastMessageController(getPool());
+};
+
 // NEW CONTROLLER GETTERS
 const getOfficeController = () => {
   return new OfficeController(getPool());
@@ -245,6 +269,30 @@ app.use(async (req, res, next) => {
         const placementController = getPlacementController();
         await placementController.initTables();
       }
+
+      // Initialize tearsheet tables
+      if (req.path.startsWith("/api/tearsheets")) {
+        const tearsheetController = getTearsheetController();
+        await tearsheetController.initTables();
+      }
+
+      // Initialize admin document tables
+      if (req.path.startsWith("/api/admin/documents")) {
+        const adminDocumentController = getAdminDocumentController();
+        await adminDocumentController.initTables();
+      }
+
+      // Initialize shared document tables
+      if (req.path.startsWith("/api/shared-documents")) {
+        const sharedDocumentController = getSharedDocumentController();
+        await sharedDocumentController.initTables();
+      }
+
+      // Initialize broadcast message tables
+      if (req.path.startsWith("/api/broadcast-messages")) {
+        const broadcastMessageController = getBroadcastMessageController();
+        await broadcastMessageController.initTables();
+      }
     } catch (error) {
       console.error("Failed to initialize tables:", error.message);
       // Continue anyway - tables might already exist
@@ -327,6 +375,30 @@ app.use("/api/tasks", sanitizeInputs, (req, res, next) => {
 app.use("/api/placements", sanitizeInputs, (req, res, next) => {
   const authMiddleware = { verifyToken: verifyToken(getPool()), checkRole };
   const router = createPlacementRouter(getPlacementController(), authMiddleware);
+  router(req, res, next);
+});
+
+app.use("/api/tearsheets", sanitizeInputs, (req, res, next) => {
+  const authMiddleware = { verifyToken: verifyToken(getPool()), checkRole };
+  const router = createTearsheetRouter(getTearsheetController(), authMiddleware);
+  router(req, res, next);
+});
+
+app.use("/api/admin/documents", sanitizeInputs, (req, res, next) => {
+  const authMiddleware = { verifyToken: verifyToken(getPool()), checkRole };
+  const router = createAdminDocumentRouter(getAdminDocumentController(), authMiddleware);
+  router(req, res, next);
+});
+
+app.use("/api/shared-documents", sanitizeInputs, (req, res, next) => {
+  const authMiddleware = { verifyToken: verifyToken(getPool()), checkRole };
+  const router = createSharedDocumentRouter(getSharedDocumentController(), authMiddleware);
+  router(req, res, next);
+});
+
+app.use("/api/broadcast-messages", sanitizeInputs, (req, res, next) => {
+  const authMiddleware = { verifyToken: verifyToken(getPool()), checkRole };
+  const router = createBroadcastMessageRouter(getBroadcastMessageController(), authMiddleware);
   router(req, res, next);
 });
 
