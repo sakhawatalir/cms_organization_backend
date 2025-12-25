@@ -288,6 +288,11 @@ class AuthController {
   async login(req, res) {
     let { email, password } = req.body;
 
+    console.log("BODY:", req.body);
+console.log("EMAIL:", req.body?.email);
+console.log("PASS LENGTH:", req.body?.password?.length);
+console.log("PASS:", req.body?.password);
+
     // Convert email to lowercase for case-insensitive login
     email = email.toLowerCase().trim();
 
@@ -330,6 +335,8 @@ class AuthController {
 
       // Compare passwords
       const isPasswordValid = await bcrypt.compare(password, user.password);
+
+      console.log("IS PASSWORD VALID:", isPasswordValid);
 
       if (!isPasswordValid) {
         return res.status(401).json({

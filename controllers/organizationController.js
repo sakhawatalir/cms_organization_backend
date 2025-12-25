@@ -87,6 +87,30 @@ class OrganizationController {
             // Get the current user's ID from the auth middleware
             const userId = req.user.id;
 
+            // Get user's name for Owner field auto-population
+            let userName = null;
+            try {
+                const userModel = new User(this.pool);
+                const user = await userModel.findById(userId);
+                if (user && user.name) {
+                    userName = user.name;
+                }
+            } catch (userError) {
+                console.error('Error fetching user name for Owner field:', userError);
+                // Continue without user name - Owner will be set from custom_fields if provided
+            }
+
+            // Ensure custom_fields is an object
+            const customFieldsObj = custom_fields || {};
+
+            // Auto-populate Owner field if missing (use authenticated user's name)
+            if (!customFieldsObj["Owner"] || (typeof customFieldsObj["Owner"] === 'string' && customFieldsObj["Owner"].trim() === "")) {
+                if (userName) {
+                    customFieldsObj["Owner"] = userName;
+                    console.log("Auto-populated Owner field with authenticated user:", userName);
+                }
+            }
+
             // Create organization in database - PASS ALL FIELDS DIRECTLY
             // CRITICAL: Log what we're passing to the model
             const modelData = {
@@ -106,7 +130,7 @@ class OrganizationController {
                 contact_phone,
                 address,
                 userId,
-                custom_fields: custom_fields || {}, // FIXED: Use snake_case to match model expectation
+                custom_fields: customFieldsObj, // FIXED: Use snake_case to match model expectation
             };
             console.log("=== PASSING TO MODEL ===");
             console.log("custom_fields being passed:", JSON.stringify(modelData.custom_fields, null, 2));
