@@ -35,6 +35,7 @@ const TearsheetController = require("./controllers/tearsheetController");
 const AdminDocumentController = require("./controllers/adminDocumentController");
 const SharedDocumentController = require("./controllers/sharedDocumentController");
 const BroadcastMessageController = require("./controllers/broadcastMessageController");
+const HeaderConfigController = require("./controllers/headerConfigController");
 // NEW IMPORTS
 const OfficeController = require("./controllers/officeController");
 const TeamController = require("./controllers/teamController");
@@ -53,6 +54,7 @@ const createTearsheetRouter = require("./routes/tearsheetRoutes");
 const createAdminDocumentRouter = require("./routes/adminDocumentRoutes");
 const createSharedDocumentRouter = require("./routes/sharedDocumentRoutes");
 const createBroadcastMessageRouter = require("./routes/broadcastMessageRoutes");
+const createHeaderConfigRouter = require("./routes/headerConfigRoutes");
 // NEW ROUTE IMPORTS
 const createOfficeRouter = require("./routes/officeRoutes");
 const createTeamRouter = require("./routes/teamRoutes");
@@ -185,6 +187,10 @@ const getBroadcastMessageController = () => {
   return new BroadcastMessageController(getPool());
 };
 
+const getHeaderConfigController = () => {
+  return new HeaderConfigController(getPool());
+};
+
 // NEW CONTROLLER GETTERS
 const getOfficeController = () => {
   return new OfficeController(getPool());
@@ -293,6 +299,12 @@ app.use(async (req, res, next) => {
         const broadcastMessageController = getBroadcastMessageController();
         await broadcastMessageController.initTables();
       }
+
+      // Initialize header config tables
+      if (req.path.startsWith("/api/header-config")) {
+        const headerConfigController = getHeaderConfigController();
+        await headerConfigController.initTables();
+      }
     } catch (error) {
       console.error("Failed to initialize tables:", error.message);
       // Continue anyway - tables might already exist
@@ -399,6 +411,13 @@ app.use("/api/shared-documents", sanitizeInputs, (req, res, next) => {
 app.use("/api/broadcast-messages", sanitizeInputs, (req, res, next) => {
   const authMiddleware = { verifyToken: verifyToken(getPool()), checkRole };
   const router = createBroadcastMessageRouter(getBroadcastMessageController(), authMiddleware);
+  router(req, res, next);
+});
+
+// Setup header config routes with authentication
+app.use("/api/header-config", sanitizeInputs, (req, res, next) => {
+  const authMiddleware = { verifyToken: verifyToken(getPool()), checkRole };
+  const router = createHeaderConfigRouter(getHeaderConfigController(), authMiddleware);
   router(req, res, next);
 });
 
