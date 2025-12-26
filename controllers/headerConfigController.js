@@ -18,9 +18,24 @@ class HeaderConfigController {
     }
   }
 
+  // helper: pick which db field to read/write
+  getColumnName(configType) {
+    return configType === "columns" ? "list_columns" : "header_fields";
+  }
+
+  // helper: parse jsonb safely
+  parseJsonb(value) {
+    try {
+      return typeof value === "string" ? JSON.parse(value) : value || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
   async get(req, res) {
     try {
       const { entityType } = req.query;
+      const configType = req.query.configType || "header"; // "header" | "columns"
 
       if (!entityType) {
         return res.status(400).json({
@@ -32,30 +47,22 @@ class HeaderConfigController {
       const config = await this.headerConfigModel.getByEntityType(entityType);
 
       if (!config) {
-        // Return empty array if no config exists
         return res.status(200).json({
           success: true,
-          entityType: entityType,
+          entityType,
+          configType,
           headerFields: [],
         });
       }
 
-      // Parse JSONB field (it might already be parsed by pg)
-      let headerFields = [];
-      try {
-        headerFields =
-          typeof config.header_fields === "string"
-            ? JSON.parse(config.header_fields)
-            : config.header_fields || [];
-      } catch (e) {
-        console.error("Error parsing header_fields:", e);
-        headerFields = [];
-      }
+      const col = this.getColumnName(configType);
+      const fields = this.parseJsonb(config[col]);
 
       return res.status(200).json({
         success: true,
         entityType: config.entity_type,
-        headerFields: headerFields,
+        configType,
+        headerFields: fields, // keep same response key (frontend unchanged)
         createdAt: config.created_at,
         updatedAt: config.updated_at,
       });
@@ -63,7 +70,7 @@ class HeaderConfigController {
       console.error("Error fetching header config:", error);
       return res.status(500).json({
         success: false,
-        message: "Failed to fetch header configuration",
+        message: "Failed to fetch configuration",
         error:
           process.env.NODE_ENV === "development" ? error.message : undefined,
       });
@@ -73,7 +80,8 @@ class HeaderConfigController {
   async upsert(req, res) {
     try {
       const { entityType } = req.query;
-      const { headerFields, fields } = req.body; // Support both 'headerFields' and 'fields'
+      const configType = req.query.configType || "header"; // "header" | "columns"
+      const { headerFields, fields } = req.body; // support both
 
       if (!entityType) {
         return res.status(400).json({
@@ -82,47 +90,44 @@ class HeaderConfigController {
         });
       }
 
-      // Use headerFields if provided, otherwise fallback to fields
       const fieldsToSave = headerFields || fields || [];
 
       if (!Array.isArray(fieldsToSave)) {
         return res.status(400).json({
           success: false,
-          message: "headerFields must be an array",
+          message: "fields must be an array",
         });
       }
 
       const userId = req.user?.id;
 
-      const config = await this.headerConfigModel.upsert(
+      // ✅ IMPORTANT: pass configType to model upsert
+      const saved = await this.headerConfigModel.upsert(
         entityType,
         fieldsToSave,
-        userId
+        userId,
+        configType
       );
 
-      // Parse JSONB field
-      let parsedFields = [];
-      try {
-        parsedFields =
-          typeof config.header_fields === "string"
-            ? JSON.parse(config.header_fields)
-            : config.header_fields || [];
-      } catch (e) {
-        parsedFields = [];
-      }
+      // saved may return different shape depending on your model
+      // safest: re-fetch and parse from actual db column
+      const config = await this.headerConfigModel.getByEntityType(entityType);
+      const col = this.getColumnName(configType);
+      const parsedFields = this.parseJsonb(config?.[col]);
 
       return res.status(200).json({
         success: true,
-        message: "Header configuration saved successfully",
-        entityType: config.entity_type,
+        message: "Configuration saved successfully",
+        entityType: entityType,
+        configType,
         headerFields: parsedFields,
-        updatedAt: config.updated_at,
+        updatedAt: config?.updated_at,
       });
     } catch (error) {
       console.error("Error saving header config:", error);
       return res.status(500).json({
         success: false,
-        message: "Failed to save header configuration",
+        message: "Failed to save configuration",
         error:
           process.env.NODE_ENV === "development" ? error.message : undefined,
       });
@@ -131,4 +136,3 @@ class HeaderConfigController {
 }
 
 module.exports = HeaderConfigController;
-
